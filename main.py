@@ -28,36 +28,10 @@ from agent_framework.orchestrations import (
 from agent_framework.observability import configure_otel_providers
 
 from mock_data import DRAFT_REPORT
-from observability import RedactingSpanProcessor, install_log_filter
+from observability import RedactingSpanProcessor, bootstrap_observability, install_log_filter
 from workflow import build_workflow, checkpoint_storage
 
 load_dotenv()
-
-
-# ---------------------------------------------------------------------------
-# Observability bootstrap
-# ---------------------------------------------------------------------------
-def bootstrap_observability() -> None:
-    """
-    1. Install the log redaction filter (covers the ERROR-log leak path).
-    2. Enable MAF instrumentation with sensitive data OFF.
-    3. Attach the redacting span processor (covers the span leak path).
-
-    Both layers are needed: the flag alone does not stop exception text.
-    """
-    install_log_filter(("agent_framework", "agent_framework.observability"))
-
-    configure_otel_providers(
-        enable_sensitive_data=os.getenv("ENABLE_SENSITIVE_DATA", "false").lower() == "true"
-    )
-
-    try:
-        from opentelemetry import trace
-        provider = trace.get_tracer_provider()
-        if hasattr(provider, "add_span_processor"):
-            provider.add_span_processor(RedactingSpanProcessor())
-    except Exception as exc:  # pragma: no cover
-        print(f"[observability] span processor not attached: {exc}")
 
 
 # ---------------------------------------------------------------------------

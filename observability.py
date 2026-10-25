@@ -29,6 +29,7 @@ ERROR path is always covered.
 """
 
 import logging
+import os
 import re
 from typing import Any, Sequence
 
@@ -156,3 +157,43 @@ def install_log_filter(logger_names: Sequence[str] = ("agent_framework",)) -> No
     """Attach the redaction filter to framework loggers."""
     for name in logger_names:
         logging.getLogger(name).addFilter(SensitiveLogFilter())
+
+
+def bootstrap_observability() -> None:
+    """
+    Bootstrap observability with privacy redaction:
+    1. Attaches log redaction filter to framework loggers.
+    2. If APPLICATIONINSIGHTS_CONNECTION_STRING is set, initializes Azure Monitor
+       (which provides Live Metrics, traces, logs, and metrics).
+    3. Otherwise, configures standard OTel providers via Agent Framework.
+    4. Attaches RedactingSpanProcessor to sanitize all spans before export.
+    """
+    install_log_filter(("agent_framework", "agent_framework.observability"))
+
+    app_insights_conn = os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
+    if app_insights_conn:
+        try:
+            from azure.monitor.opentelemetry import configure_azure_monitor
+
+            configure_azure_monitor(connection_string=app_insights_conn)
+            logging.info("[observability] Azure Monitor OpenTelemetry configured.")
+        except Exception as exc:
+            logging.warning(f"[observability] Failed to configure Azure Monitor: {exc}")
+    else:
+        try:
+            from agent_framework.observability import configure_otel_providers
+
+            configure_otel_providers(
+                enable_sensitive_data=os.getenv("ENABLE_SENSITIVE_DATA", "false").lower() == "true"
+            )
+        except Exception as exc:
+            logging.warning(f"[observability] Failed to configure OTel providers: {exc}")
+
+    try:
+        from opentelemetry import trace
+
+        provider = trace.get_tracer_provider()
+        if hasattr(provider, "add_span_processor"):
+            provider.add_span_processor(RedactingSpanProcessor())
+    except Exception as exc:
+        logging.warning(f"[observability] RedactingSpanProcessor not attached: {exc}")

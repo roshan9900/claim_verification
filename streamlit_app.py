@@ -11,7 +11,10 @@ from agent_framework.orchestrations import (
 )
 
 from mock_data import DRAFT_REPORT
+from observability import bootstrap_observability
 from workflow import build_workflow, checkpoint_storage
+
+bootstrap_observability()
 
 
 def _message_text(value: Any) -> str:
@@ -211,6 +214,9 @@ with st.sidebar:
         st.warning(
             "Configure Foundry endpoint/key, Azure OpenAI identity, or OPENAI_API_KEY in .env."
         )
+
+    if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):
+        st.success("Application Insights telemetry active")
     st.caption(
         "Workflow checkpoints use local storage. For Azure, mount durable storage "
         "or switch to a shared checkpoint backend before scaling replicas."
