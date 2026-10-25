@@ -1,0 +1,8 @@
+agent-framework
+agent-framework-openai
+azure-identity
+python-dotenv
+opentelemetry-exporter-otlp-proto-http
+openai
+pydantic
+streamlit
